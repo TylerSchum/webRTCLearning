@@ -5,7 +5,7 @@ const port = process.env.PORT || 8090;
 
 const http = require('http').Server(app);
 const io = require("socket.io")(http);
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("."));
 
 io.on('connection', function(client) {
     console.log("Connection established");
