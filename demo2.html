@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>WCG -- WebRTC Tutorial For Beginners</title>
+</head>
+<body>
+    <video id="remoteview" autoplay></video>
+    <video id="selfview" autoplay></video>
+    <button type="button" id="makeCall">Make Call</button>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io();
+    </script>
+    <script src="/js/webrtc.server.js"></script>
+</body>
+</html>
