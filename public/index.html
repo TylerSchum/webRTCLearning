@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>vchat - a simple video chat app</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css?family=Raleway" rel="stylesheet">
+    <!-- Latest CDN production Javascript and CSS: 2.6.0 -->
+    <script
+    src="https://ok1static.oktacdn.com/assets/js/sdk/okta-signin-widget/2.6.0/js/okta-sign-in.min.js"
+    type="text/javascript"></script>
+    <link
+    href="https://ok1static.oktacdn.com/assets/js/sdk/okta-signin-widget/2.6.0/css/okta-sign-in.min.css"
+    type="text/css"
+    rel="stylesheet"/>
+
+    <!-- Theme file: Customize or replace this file if you want to override our default styles -->
+    <link
+    href="https://ok1static.oktacdn.com/assets/js/sdk/okta-signin-widget/2.6.0/css/okta-theme.css"
+    type="text/css"
+    rel="stylesheet"/>
+    <script src="https://webrtc.github.io/adapter/adapter-4.2.2.js"></script>
+    <link href="css/style.css" type="text/css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1><a href="/">Code Chat</a></h1>
+        <h2><a href="/">a simple video chat app</a></h2>
+      </header>
+
+      <div id="okta-login-container"></div>
+
+      <div class="row">
+        <div class="col"></div>
+        <div class="col-md-auto align-self-center">
+        <p id="login">
+            <b>NOTE</b>: You are not currently logged in. If you'd like to start your own chat room please
+            <button type="button" class="btn btn-light" onclick="document.location='/'">log in</button>
+        </p>
+          <div id="url" class="alert alert-dark" role="alert">
+            <span id="roomIntro">ROOM URL</span>: <span id="roomUrl"></span>
+          </div>
+        </div>
+        <div class="col"></div>
+      </div>
+
+      <div id="remotes" class="row">
+        <div class="col-md-6">
+          <div class="videoContainer">
+            <video id="selfVideo" oncontextmenu="return false;"></video>
+            <meter id="localVolume" class="volume" min="-45" max="-20" high="-25" low="-40"></meter>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Hacked together by <a href="https://github.com/TylerSchum/">Tyler Schum</a>
+        and <a href="https://twitter.com/oktadev">@oktadev</a>.</p>
+    </footer>
+    <script>
+        var okta = new OktaSignIn({
+            baseUrl: "https://dev-527638.oktapreview.com",
+            clientId: "0oag17c7177Hsr9ii0h7",
+            authParams: {
+            issuer: "https://dev-527638.oktapreview.com/oauth2/default",
+            responseType: ["token", "id_token"],
+            display: "page"
+            }
+        });
+        
+        // Render the login form.
+        function showLogin() {
+            okta.renderEl({ el: "#okta-login-container" }, function(res) {}, function(err) {
+                alert("Couldn't render the login form, something horrible must have happened. Please refresh the page.");
+            });
+        }
+        
+        // Handle the user's login and what happens next.
+        function handleLogin() {
+            // If the user is logging in for the first time...
+            if (okta.token.hasTokensInUrl()) {
+                okta.token.parseTokensFromUrl(
+                    function success(res) {
+                    // Save the tokens for later use, e.g. if the page gets refreshed:
+                        okta.tokenManager.add("accessToken", res[0]);
+                        okta.tokenManager.add("idToken", res[1]);
+                
+                        console.log("user just logged in");
+                        window.location = getRoomURL();
+                    }, function error(err) {
+                        alert("We weren't able to log you in, something horrible must have happened. Please refresh the page.");
+                    }
+                );
+            } else {
+                okta.session.get(function(res) {
+            
+                    // If the user is logged in...
+                    if (res.status === "ACTIVE") {
+                        if (!hasQueryString()) {
+                            window.location = getRoomURL();
+                        }
+                        console.log("user is already logged in")
+                        return enableVideo();
+                    }
+                    // If we get here, the user is not logged in.
+                    if (hasQueryString()) {
+                        document.getElementById("login").style.display = "block";
+                        enableVideo();
+                    } else {
+                        showLogin();
+                    }
+                    console.log("user not logged in");
+                });
+            }
+        }
+        
+        handleLogin();
+
+        function hasQueryString() {
+            return location.href.indexOf("?") !== -1;
+        }
+
+        function getRoom() {
+            var query = location.search && location.search.split("?")[1];
+
+            if (query) {
+                return (location.search && decodeURIComponent(query.split("=")[1]));
+            }
+            return okta.tokenManager.get("idToken").claims.email;
+        }
+
+        function getRoomURL() {
+            return location.protocol + "//" + location.host + (location.path || "") + "?room=" + getRoom();
+        }
+
+        function loadSimpleWebRTC() {
+            var script = document.createElement("script");
+            script.src = "https://simplewebrtc.com/latest-v3.js";
+            document.head.appendChild(script);
+            script.onload = function() {
+                var webrtc = new SimpleWebRTC({
+                    localVideoEl: "selfVideo",
+                    remoteVideoEl: "",
+                    autoRequestMedia: true,
+                    debug: false,
+                    detectSpeakingEvents: true,
+                    autoAdjustMic: false
+                });
+
+                document.getElementById("roomURL").innerText = getRoomURL();
+
+                webrtc.on("readyToCall", function() {
+                    webrtc.joinRoom(getRoom());
+                });
+
+                function showVolume(el, volume) {
+                    if (!el) return;
+                    if (volume < -45) volume = -45;
+                    if (volume > -20) volume = -20;
+                    el.value = volume;
+                }
+
+                webrtc.on("localStream", function(stream) {
+                    var button = document.querySelector("form > button");
+                    if (button) button.removeAttribute("disabled");
+                    document.getElementById("localVolume").style.display = "block";
+                });
+
+                webrtc.on("localMediaError", function(err) {
+                    alert ("This service requires access to your camera. Please grant access and then refresh the page.");
+                });
+
+                webrtc.on("videoAdded", function(video, peer) {
+                    console.log("user added to chat", peer);
+                    var remotes = document.getElementById("remotes");
+
+                    if (remotes) {
+                        var outerContainer = document.createElement("div");
+                        outerContainer.className = "col-md-6";
+
+                        var container = document.createElement("div");
+                        container.className = "videoContainer";
+                        container.id = "container_" + webrtc.getDomId(peer);
+                        container.appendChild(video);
+
+                        video.oncontextmenu = function() {return false;};
+
+                        var vol = document.createElement("meter");
+                        vol.id = "volume_" + peer.id;
+                        vol.className = "volume";
+                        vol.min = -45;
+                        vol.max = -20;
+                        vol.low = -40;
+                        vol.high = -25;
+                        container.appendChild(vol);
+
+                        if (peer && peer.pc) {
+                            var connstate = document.createElement("div");
+                            connstate.className = "connectionstate";
+                            container.appendChild(connstate);
+
+                            peer.pc.on("iceConnectionStateChange", function(event) {
+                                switch (peer.pc.iceConnectionState) {
+                                    case "checking":
+                                        connstate.innerText = "connection to peer...";
+                                        break;
+                                    case "connected":
+                                    case "completed":
+                                        vol.style.display = "block";
+                                        connstate.innerText = "connection established";
+                                        break;
+                                    case "disconnected":
+                                        connstate.innerText = "disconnected";
+                                        break;
+                                    case "failed":
+                                        connstate.innerText = "connection failed";
+                                        break;
+                                    case "closed":
+                                        connstate.innerText = "connection closed";
+                                        break;
+                                }
+                            });
+                        }
+
+                        outerContainer.appendChild(container);
+                        remotes.appendChild(outerContainer);
+
+
+                        var remoteVideos = document.getElementById("remotes").getElementsByTagName("video").length;
+
+                        if (!(remoteVideos % 2)) {
+                            var spacer = document.createElement("div");
+                            spacer.className = "w-100";
+                            remotes.appendChild(spacer);
+                        }
+                    }
+                });
+
+                webrtc.on("videoRemoved", function(video, peer) {
+                    console.log("user removed from chat", peer);
+                    var remotes = document.getElementById("remotes");
+                    var el = document.getElementById("container_" + webrtc.getDomId(peer));
+                    if (remotes && el) {
+                        remotes.removeChild(el.parentElement);
+                    }
+                });
+
+                webrtc.on("volumeChange", function(volume, treshold) {
+                    showVolume(document.getElementById("localVolume"), volume);
+                });
+
+                webrtc.on("remoteVolumeChange", function(peer, volume) {
+                    showVolume(document.getElementById("volume_" + peer.id), volume);
+                });
+
+                webrtc.on("iceFailed", function(peer) {
+                    var connstate = document.querySelector("#container_" + webrtc.getDomId(peer) + " .connectionstate");
+                    console.log("local fail", connstate);
+                    if (connstate) {
+                        connstate.innerText = "connection failed";
+                        fileinput.disabled = "disabled";
+                    }
+                });
+
+                webrtc.on("connectivityError", function(peer) {
+                    var connstate = document.querySelector("#container_" + webrtc.getDomId(peer) + " .connectionstate");
+                    console.log("remote fail", connstate);
+                    if (connstate) {
+                        connstate.innerText = "connection failed";
+                        fileinput.disabled = "disabled";
+                    }
+                });
+            }
+        }
+
+        function enableVideo() {
+            document.getElementById("url").style.display = "block";
+            document.getElementById("remotes").style.visibility = "visible";
+            loadSimpleWebRTC();
+        }
+    </script>
+  </body>
+</html>
